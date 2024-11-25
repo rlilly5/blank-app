@@ -22,7 +22,7 @@ data = data = pd.read_csv('ProcessedTicketData.csv')
 data['date'] = data['date'].astype(str).str[:10]
 data['date'] = pd.to_datetime(data['date'])
 
-print(data['date'].head(10))  # first 10 rows of the date column
+#print(data['date'].head(10))  # first 10 rows of the date column
 
 # Target variable
 target = 'max_price'
@@ -40,19 +40,9 @@ for col in ['artist', 'venue', 'city', 'state', 'ticket_vendor']:
         features[col] = encoder.fit_transform(data[col])
         encoders[col] = encoder
 
-print(f"Features shape: {features.shape}")
+#print(f"Features shape: {features.shape}")
 
-print(features.head())
-
-# Splitting the data in test and train datasets
-
-X = features
-y = data[target]
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) # 20% train data, 20% test data
-
-print(f"Training set size: {X_train.shape}")
-print(f"Testing set size: {X_test.shape}")
+#print(features.head())
 
 # Splitting the data in test and train datasets
 
@@ -71,8 +61,18 @@ y = data[target]
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) # 20% train data, 20% test data
 
-print(f"Training set size: {X_train.shape}")
-print(f"Testing set size: {X_test.shape}")
+#print(f"Training set size: {X_train.shape}")
+#print(f"Testing set size: {X_test.shape}")
+
+# Splitting the data in test and train datasets
+
+X = features
+y = data[target]
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) # 20% train data, 20% test data
+
+#print(f"Training set size: {X_train.shape}")
+#print(f"Testing set size: {X_test.shape}")
 
 # Make predictions on the test set
 y_pred = model.predict(X_test)
@@ -104,9 +104,6 @@ def predict_ticket_price(artist_name, venue_name):
 
     predicted_price = model.predict(input_sample)[0]
     st.write(f"Predicted ticket price: ${predicted_price:.2f}")
-
-
-
 
 
 # Streamlit App
