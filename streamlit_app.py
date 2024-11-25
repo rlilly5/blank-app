@@ -3,7 +3,11 @@ import pandas as pd
 import datetime
 import math
 
-data = data = pd.read_csv('ProcessedTicketData.csv')
+data = pd.read_csv('ProcessedTicketData.csv')
+
+    # User input for Artist and Venue
+    artist_name = st.selectbox("Select Artist", data['artist'].unique())
+    venue_name = st.selectbox("Select Venue", data['venue'].unique())
 
 # Load your pre-trained model and encoders (assuming they are saved)
 model = model
