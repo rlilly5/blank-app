@@ -5,8 +5,8 @@ import math
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestRegressor
-#from sklearn.metrics import mean_squared_error, r2_score
-#import matplotlib.pyplot as plt
+from sklearn.metrics import mean_squared_error, r2_score
+import matplotlib.pyplot as plt
 
 data = data = pd.read_csv('ProcessedTicketData.csv')
 
@@ -74,11 +74,36 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 #print(f"Training set size: {X_train.shape}")
 #print(f"Testing set size: {X_test.shape}")
 
+# Extract year, month, day, and day_of_week from the date column for train and test
+
+if 'date' in X_train.columns:
+    X_train['year'] = X_train['date'].dt.year
+    X_train['month'] = X_train['date'].dt.month
+    X_train['day'] = X_train['date'].dt.day
+    X_train['day_of_week'] = X_train['date'].dt.dayofweek
+    X_train['days_since_epoch'] = (X_train['date'] - pd.Timestamp('1970-01-01')).dt.days
+
+    X_test['year'] = X_test['date'].dt.year
+    X_test['month'] = X_test['date'].dt.month
+    X_test['day'] = X_test['date'].dt.day
+    X_test['day_of_week'] = X_test['date'].dt.dayofweek
+    X_test['days_since_epoch'] = (X_test['date'] - pd.Timestamp('1970-01-01')).dt.days
+
+    # Drop the original date column
+    X_train = X_train.drop(columns=['date'])
+    X_test = X_test.drop(columns=['date'])
+
+# train random forest model
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+
+
 # Make predictions on the test set
 y_pred = model.predict(X_test)
 
 # Make predictions on the test set
 y_pred = model.predict(X_test)
+
 
 # Function to predict ticket price with input validation
 def predict_ticket_price(artist_name, venue_name):
