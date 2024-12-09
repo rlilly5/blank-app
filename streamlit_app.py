@@ -1,129 +1,112 @@
 import streamlit as st
+import requests
 import pandas as pd
-import datetime
-import math
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import LabelEncoder
 
-data = pd.read_csv('ProcessedTicketData.csv')
-
-    # User input for Artist and Venue
-    artist_name = st.selectbox("Select Artist", data['artist'].unique())
-    venue_name = st.selectbox("Select Venue", data['venue'].unique())
-
-### Load your pre-trained model and encoders (assuming they are saved)
-#model = model
-#encoders = data['venue', 'artist']
-
-#########################
-####FROM MODEL CODE######
-#########################
-
-# Convert 'date' column to string, take first 10 characters, and convert to datetime
-data['date'] = data['date'].astype(str).str[:10]
+# Load the processed data and model setup
+processed_data_path = 'ProcessedTicketData.csv'
+data = pd.read_csv(processed_data_path)
 data['date'] = pd.to_datetime(data['date'])
 
-print(data['date'].head(10))  # first 10 rows of the date column
-
-# Target variable
 target = 'max_price'
-
-# Drop the target column to get only the features
 features = data.drop(columns=['event_id', 'max_price'])
 
-# Dictionary to store encoders for each column
 encoders = {}
-
-# Encode categorical columns
 for col in ['artist', 'venue', 'city', 'state', 'ticket_vendor']:
     if col in features:
         encoder = LabelEncoder()
         features[col] = encoder.fit_transform(data[col])
         encoders[col] = encoder
 
-print(f"Features shape: {features.shape}")
-
-print(features.head())
-
-# Splitting the data in test and train datasets
-
 X = features
 y = data[target]
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) # 20% train data, 20% test data
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+model.fit(X, y)
 
-print(f"Training set size: {X_train.shape}")
-print(f"Testing set size: {X_test.shape}")
+# Streamlit app setup
+st.title("Ticketmaster Event Selector with Ticket Price Prediction")
 
-# Splitting the data in test and train datasets
+# User input for event search
+artist_name = st.text_input("Enter artist name:")
+state_code = st.text_input("Enter state code (e.g., 'GA' for Georgia):")
+search_button = st.button("Search Events")
 
-X = features
-y = data[target]
+if search_button:
+    # Construct the API URL
+    API_KEY = "IqvAJBcdXQd2ySO7fh4k9Laa1M4AEJ0N"
+    BASE_URL = "https://app.ticketmaster.com/discovery/v2/"
+    params = {
+        "apikey": API_KEY,
+        "keyword": artist_name,
+        "stateCode": state_code,
+        "classificationName": "Music"
+    }
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) # 20% train data, 20% test data
+    response = requests.get(f"{BASE_URL}events.json", params=params)
 
-print(f"Training set size: {X_train.shape}")
-print(f"Testing set size: {X_test.shape}")
+    if response.status_code == 200:
+        data = response.json()
+        events = data.get("_embedded", {}).get("events", [])
 
-# Splitting the data in test and train datasets
+        if events:
+            st.write(f"Found {len(events)} upcoming events:")
 
-X = features
-y = data[target]
+            for idx, event in enumerate(events):
+                name = event.get("name", "N/A")
+                date = event.get("dates", {}).get("start", {}).get("localDate", "N/A")
+                venue = event.get("_embedded", {}).get("venues", [{}])[0].get("name", "N/A")
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) # 20% train data, 20% test data
+                if st.button(f"Select: {name} at {venue} on {date}"):
+                    st.session_state.selected_event = {
+                        "name": name,
+                        "date": date,
+                        "venue": venue
+                    }
+                    st.experimental_rerun()
+        else:
+            st.write("No upcoming events found. Try a different search.")
+    else:
+        st.error(f"Error {response.status_code}: {response.text}")
 
-print(f"Training set size: {X_train.shape}")
-print(f"Testing set size: {X_test.shape}")
+if "selected_event" in st.session_state:
+    selected_event = st.session_state.selected_event
+    st.write("### Selected Event")
+    st.write(f"- **Name**: {selected_event['name']}")
+    st.write(f"- **Date**: {selected_event['date']}")
+    st.write(f"- **Venue**: {selected_event['venue']}")
 
-# Make predictions on the test set
-y_pred = model.predict(X_test)
+    # Predict ticket prices
+    event_date = datetime.strptime(selected_event['date'], '%Y-%m-%d')
+    today = datetime.now()
+    days_until_event = (event_date - today).days
 
-# Make predictions on the test set
-y_pred = model.predict(X_test)
+    prediction_dates = [today + timedelta(days=i) for i in range(days_until_event + 1)]
+    predicted_prices = []
 
-# Function to predict ticket price with input validation
-def predict_ticket_price(artist_name, venue_name):
-    if artist_name not in encoders['artist'].classes_:
-        st.error(f"Artist '{artist_name}' not found in training data.")
-        return
+    for prediction_date in prediction_dates:
+        features_sample = X.iloc[0].copy()
+        features_sample['artist'] = encoders['artist'].transform([artist_name])[0]
+        features_sample['days_since_epoch'] = (prediction_date - datetime(1970, 1, 1)).days
+        predicted_price = model.predict([features_sample.values])[0]
+        predicted_prices.append(predicted_price)
 
-    if venue_name not in encoders['venue'].classes_:
-        st.error(f"Venue '{venue_name}' not found in training data.")
-        return
+    # Find minimum price and corresponding date
+    min_price = min(predicted_prices)
+    min_price_date = prediction_dates[predicted_prices.index(min_price)]
 
-    artist_encoded = encoders['artist'].transform([artist_name])[0]
-    venue_encoded = encoders['venue'].transform([venue_name])[0]
+    st.write(f"### Predicted Ticket Prices")
+    st.write(f"- **Minimum Price**: ${min_price:.2f} on {min_price_date.strftime('%Y-%m-%d')}")
 
-    input_sample = pd.DataFrame(columns=X_train.columns)  # Create a DataFrame for input
-    input_sample.loc[0, 'artist'] = artist_encoded
-    input_sample.loc[0, 'venue'] = venue_encoded
-
-    # Assuming you don't have historical data for specific dates, fill other features with mean values
-    for col in ['year', 'month', 'day', 'day_of_week', 'days_since_epoch']:
-        if col in input_sample:
-            input_sample.loc[0, col] = X_train[col].mean()  # Use mean of training data
-
-    predicted_price = model.predict(input_sample)[0]
-    st.write(f"Predicted ticket price: ${predicted_price:.2f}")
-
-
-
-
-
-# Streamlit App
-def main():
-    st.title("Concert Ticket Price Predictor")
-
-    # User input for Artist and Venue
-    artist_name = st.text_input("Enter Artist Name")
-    venue_name = st.text_input("Enter Venue Name")
-
-    # Predict button and price display
-    if st.button("Predict Price"):
-        predict_ticket_price(artist_name, venue_name)
-
-if __name__ == "__main__":
-    main()
+    # Plot the prices
+    fig, ax = plt.subplots()
+    ax.plot(prediction_dates, predicted_prices, label='Predicted Prices')
+    ax.axvline(min_price_date, color='red', linestyle='--', label='Minimum Price Date')
+    ax.set_title("Predicted Ticket Prices Over Time")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Price ($)")
+    ax.legend()
+    st.pyplot(fig)
